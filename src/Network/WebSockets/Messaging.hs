@@ -8,6 +8,7 @@ module Network.WebSockets.Messaging
     , onNotify
     , onConnect
     , onDisconnect
+    , startListening
     , Request(..)
     , Notify(..)
     , Some(..)

@@ -13,7 +13,7 @@ import Control.Concurrent.STM
 import Control.Exception (BlockedIndefinitelyOnSTM(..), finally)
 
 import Control.Applicative
-import Control.Monad (forever, void, (>=>), msum, when)
+import Control.Monad (forever, void, (>=>), msum, when, guard)
 import Control.Monad.IO.Class
 
 import Data.Aeson (encode, decode, ToJSON(..), FromJSON(..), fromJSON, Result(..))
@@ -42,6 +42,7 @@ type SubId = Int
 data Connection = Connection
     { outbox       :: !(Closable TQueue Json.Value)
     , disconnected :: !(TVar Bool)
+    , started      :: !(TVar Bool)
     , discoHandler :: !(TVar (Maybe (IO ())))
     , subId        :: !(TVar SubId)
     , requestSubs  :: !(TVar (IntMap (Handler Json.Value)))
@@ -68,6 +69,7 @@ foldFuture discHandler resHandler (Future var disc) =
 newConnection :: STM Connection
 newConnection = Connection
     <$> newTQueue
+    <*> newTVar False
     <*> newTVar False
     <*> newTVar Nothing
     <*> newTVar 0
@@ -134,6 +136,11 @@ request conn@(Connection {..}) !req = do
 
 notify :: Notify ntfy => Connection -> ntfy -> STM ()
 notify conn = send conn . Notification . ntfyToJSON
+
+-- Start processing incoming messages. No onNotify or onRequest handler
+-- will be called before this function is called.
+startListening :: Connection -> STM ()
+startListening (Connection{..}) = writeTVar started True
 
 nextSubId :: Connection -> STM SubId
 nextSubId (Connection {..}) = do
@@ -248,9 +255,11 @@ onConnect handler = do
     sink <- getSink
 
     liftIO $ do
-        void . forkIO $ untilClosed outbox return (sinkJson sink)
-            `catch` handleWriteError
+        void . forkIO $ do
+            untilClosed outbox return (sinkJson sink)
+                `catch` handleWriteError
 
         void . forkIO $ handler conn
 
+    liftIO $ atomically $ readTVar started >>= guard
     catchWsError readLoop handleReadError
