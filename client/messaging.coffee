@@ -42,20 +42,20 @@ define (require) ->
             console.log "Messaging DEBUG: #{debug}"
         return
 
-      if @useSocketIO?
+      if @useSocketIO
         @sock.on 'message', msgHandler
       else
         @sock.onmessage = msgHandler
 
     onConnect: (callback) ->
-      if @useSocketIO?
-        @sock.on 'connection', callback
+      if @useSocketIO
+        @sock.on 'connect', callback
       else
         @sock.onopen = callback
       return
 
     onDisconnect: (callback) ->
-      if @useSocketIO?
+      if @useSocketIO
         @sock.on 'disconnect', callback
       else
         @sock.onclose = callback
