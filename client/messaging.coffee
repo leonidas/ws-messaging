@@ -48,14 +48,14 @@ define (require) ->
         @sock.onmessage = msgHandler
 
     onConnect: (callback) ->
-      if useSocketIO?
+      if @useSocketIO?
         @sock.on 'connection', callback
       else
         @sock.onopen = callback
       return
 
     onDisconnect: (callback) ->
-      if useSocketIO?
+      if @useSocketIO?
         @sock.on 'disconnect', callback
       else
         @sock.onclose = callback
