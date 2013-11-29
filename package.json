@@ -1,0 +1,22 @@
+{
+  "name": "ws-messaging",
+  "version": "0.0.0",
+  "description": "Higher level API for WebSockets communication between a Haskell server and JavaScript client.",
+  "main": "index.js",
+  "dependencies": {},
+  "devDependencies": {
+    "coffee-script": "~1.6.3"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/leonidas/ws-messaging.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/leonidas/ws-messaging/issues"
+  }
+}

@@ -1,2 +1,2 @@
 #!/bin/sh
-coffee -c client/messaging.coffee
+node_modules/coffee-script/bin/coffee -c client/messaging.coffee
