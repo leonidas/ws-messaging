@@ -6,7 +6,7 @@
 
 module Network.WebSockets.Messaging.Connection where
 
-import Network.WebSockets hiding (send, Request, Message)
+import qualified Network.WebSockets as WS
 
 import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
@@ -180,14 +180,11 @@ onDisconnect !(Connection {..}) = writeTVar discoHandler . Just
 send :: Connection -> Container -> STM ()
 send (Connection {..}) = writeTQueue outbox . Just . toJSON
 
-recvJson :: (TextProtocol p, FromJSON a) => WebSockets p (Maybe a)
-recvJson = decode <$> receiveData
+recvJson :: FromJSON a => WS.Connection -> IO (Maybe a)
+recvJson = fmap decode . WS.receiveData
 
-sendJson :: TextProtocol p => Json.Value -> WebSockets p ()
-sendJson = sendTextData . encode
-
-sinkJson :: TextProtocol p => Sink p -> Json.Value -> IO ()
-sinkJson sink = sendSink sink . DataMessage . Text . encode
+sendJson :: WS.Connection -> Json.Value -> IO ()
+sendJson c = WS.sendTextData c . encode
 
 untilClosed :: Closable TQueue a -> (a -> STM b) -> (b -> IO c) -> IO ()
 untilClosed chan handler after = loop where
@@ -232,13 +229,13 @@ dispatch conn@(Connection {..}) !c = case c of
 
     _ -> return () -- TODO: print/log error?
 
-onConnect :: TextProtocol p => (Connection -> IO ()) -> WebSockets p ()
-onConnect handler = do
+onConnect :: (Connection -> IO ()) -> WS.Connection -> IO ()
+onConnect handler ws = do
     conn@(Connection {..}) <- liftIO $ atomically newConnection
     let replyInvalid = atomically $ send conn $ ProtocolError "invalid message"
 
-        handleWriteError (_ :: ConnectionError) = signalDisconnect
-        handleReadError _ = liftIO signalDisconnect
+        handleWriteError (_ :: WS.ConnectionException) = signalDisconnect
+        handleReadError(_ :: WS.ConnectionException) = liftIO signalDisconnect
         signalDisconnect = do
             dhandler <- atomically $ do
                 writeTQueue outbox Nothing
@@ -250,16 +247,14 @@ onConnect handler = do
                 Just h  -> h
 
         readLoop = forever $ do
-            recvJson >>= liftIO . maybe replyInvalid (dispatch conn)
-
-    sink <- getSink
+            recvJson ws >>= liftIO . maybe replyInvalid (dispatch conn)
 
     liftIO $ do
         void . forkIO $ do
-            untilClosed outbox return (sinkJson sink)
+            untilClosed outbox return (sendJson ws)
                 `catch` handleWriteError
 
         void . forkIO $ handler conn
 
     liftIO $ atomically $ readTVar started >>= guard
-    catchWsError readLoop handleReadError
+    catch readLoop handleReadError
